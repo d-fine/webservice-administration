@@ -1,0 +1,1 @@
+python-sonarqube-api == 1.2.0

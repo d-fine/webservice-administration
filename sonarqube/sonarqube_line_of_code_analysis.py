@@ -3,6 +3,7 @@ import os
 from dataclasses import dataclass
 
 from sonarqube import SonarQubeClient
+from sonarqube.utils.exceptions import AuthError
 
 """
 Measures Lines of Code (LOC) in SonarQube.  
@@ -91,11 +92,16 @@ class SonarQubeFacade:
 
     def get_branch_size(self, project_key: str, branch_name: str):
         """ Retrieve the number of lines of a branch of a given project """
-        component = self._client.measures.get_component_with_specified_measures(component=project_key,
+        result = 0
+        try:
+            component = self._client.measures.get_component_with_specified_measures(component=project_key,
                                                                                 branch=branch_name,
                                                                                 metricKeys="ncloc")
-        measures = component["component"]["measures"]
-        return measures[0]["value"] if len(measures) > 0 else 0
+            measures = component["component"]["measures"]
+            result = measures[0]["value"] if len(measures) > 0 else 0
+        except AuthError:
+            print(f"Could not check project {project_key}, not sufficient privileges")
+        return result
 
     def get_file_sizes(self, project_key: str, branch_name: str):
         """ Retrieve the file paths and number of lines of a branch for a given project """
@@ -108,8 +114,12 @@ class SonarQubeFacade:
                                                                              asc="false",
                                                                              s="metric"))
 
-        results = [Result(identifier=component["path"], number_of_lines=component["measures"][0]["value"]) for component
-                   in component_tree]
+        results = []
+        for component in component_tree:
+            try:
+                results.append(Result(identifier=component["path"], number_of_lines=component["measures"][0]["value"]))
+            except IndexError:
+                print(f"Failed to process {component['key']}")
         return results
 
 
